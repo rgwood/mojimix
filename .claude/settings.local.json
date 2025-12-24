@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/reilly/source/mojimix show --stat)",
+      "WebSearch",
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:v2.tauri.app)",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(cargo check:*)",
+      "Bash(convert:*)",
+      "Bash(file:*)",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

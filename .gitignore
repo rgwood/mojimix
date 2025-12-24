@@ -1,1 +1,20 @@
+# Rust
 /target
+src-tauri/target
+
+# Dependencies
+node_modules
+
+# Build output
+dist
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
