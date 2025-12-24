@@ -121,27 +121,70 @@ pub async fn generate_emoji_image(prompt: &str, api_key: &str) -> Result<Vec<u8>
 }
 
 pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<Vec<u8>, String> {
-    use image::{ImageFormat, Rgba};
+    use image::{ImageFormat, Rgba, RgbaImage};
     use std::io::Cursor;
 
     let img = image::load_from_memory(image_bytes)
         .map_err(|e| format!("Failed to load image: {}", e))?;
 
-    let resized = img.resize_exact(128, 128, image::imageops::FilterType::Lanczos3);
-    let mut rgba = resized.to_rgba8();
+    let mut rgba = img.to_rgba8();
 
     // Replace bright green (#00FF00) background with transparency
-    // Use a tolerance to catch near-green pixels
     for pixel in rgba.pixels_mut() {
         let Rgba([r, g, b, _]) = *pixel;
-        // Check if pixel is close to bright green
         if r < 60 && g > 200 && b < 60 {
             *pixel = Rgba([0, 0, 0, 0]);
         }
     }
 
+    // Find bounding box of non-transparent pixels
+    let (width, height) = rgba.dimensions();
+    let mut min_x = width;
+    let mut min_y = height;
+    let mut max_x = 0u32;
+    let mut max_y = 0u32;
+
+    for (x, y, pixel) in rgba.enumerate_pixels() {
+        if pixel.0[3] > 10 {
+            min_x = min_x.min(x);
+            min_y = min_y.min(y);
+            max_x = max_x.max(x);
+            max_y = max_y.max(y);
+        }
+    }
+
+    // Crop to bounding box with small padding
+    let padding = 4u32;
+    let crop_x = min_x.saturating_sub(padding);
+    let crop_y = min_y.saturating_sub(padding);
+    let crop_w = (max_x - min_x + 1 + padding * 2).min(width - crop_x);
+    let crop_h = (max_y - min_y + 1 + padding * 2).min(height - crop_y);
+
+    let cropped = if crop_w > 0 && crop_h > 0 && max_x >= min_x && max_y >= min_y {
+        image::imageops::crop_imm(&rgba, crop_x, crop_y, crop_w, crop_h).to_image()
+    } else {
+        rgba
+    };
+
+    // Resize to 128x128, maintaining aspect ratio and centering
+    let (cw, ch) = cropped.dimensions();
+    let scale = (120.0 / cw as f32).min(120.0 / ch as f32);
+    let new_w = (cw as f32 * scale) as u32;
+    let new_h = (ch as f32 * scale) as u32;
+
+    let scaled = image::imageops::resize(&cropped, new_w, new_h, image::imageops::FilterType::Lanczos3);
+
+    // Center on 128x128 canvas
+    let mut final_img = RgbaImage::new(128, 128);
+    let offset_x = (128 - new_w) / 2;
+    let offset_y = (128 - new_h) / 2;
+
+    for (x, y, pixel) in scaled.enumerate_pixels() {
+        final_img.put_pixel(offset_x + x, offset_y + y, *pixel);
+    }
+
     let mut output = Cursor::new(Vec::new());
-    rgba.write_to(&mut output, ImageFormat::Png)
+    final_img.write_to(&mut output, ImageFormat::Png)
         .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
     Ok(output.into_inner())
