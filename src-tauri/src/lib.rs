@@ -54,12 +54,14 @@ fn build_prompt(emojis: &[String], modifier: Option<&str>) -> String {
     let emoji_str = emojis.join(" ");
 
     let base_prompt = format!(
-        "Create a single emoji that combines these emojis into one: {}. \
-         Style: Standard Unicode emoji style like Google Noto Emoji or Apple emoji. \
-         3D-ish with subtle gradients, rounded glossy appearance, warm vibrant colors. \
-         NO shadows, NO drop shadows, NO glow effects. Single centered icon on a solid bright green (#00FF00) background. \
-         Must look like a native system emoji, not flat or illustrated. \
-         The background MUST be pure bright green (#00FF00) with no gradients or variations.",
+        "Create a single emoji combining: {}. \
+         CRITICAL: Keep it SIMPLE and MINIMAL like standard Unicode emojis. \
+         Copy the exact visual style of Google Noto Emoji - simple shapes, minimal details, clean lines. \
+         Do NOT add extra details, textures, or creative interpretations. \
+         The result should look like it belongs in the standard emoji keyboard. \
+         Soft 3D with subtle gradients, bright saturated colors. \
+         NO shadows, NO glow, NO complex textures. \
+         Solid bright green (#00FF00) background, no variations.",
         emoji_str
     );
 
