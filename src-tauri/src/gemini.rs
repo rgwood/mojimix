@@ -2,8 +2,11 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-const GEMINI_ENDPOINT: &str =
+const GEMINI_IMAGE_ENDPOINT: &str =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent";
+
+const GEMINI_TEXT_ENDPOINT: &str =
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 #[derive(Serialize)]
 struct GeminiRequest {
@@ -82,7 +85,7 @@ pub async fn generate_emoji_image(prompt: &str, api_key: &str) -> Result<Vec<u8>
     };
 
     let response = client
-        .post(GEMINI_ENDPOINT)
+        .post(GEMINI_IMAGE_ENDPOINT)
         .header("x-goog-api-key", api_key)
         .header("Content-Type", "application/json")
         .json(&request)
@@ -142,4 +145,81 @@ pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
     Ok(output.into_inner())
+}
+
+#[derive(Serialize)]
+struct TextRequest {
+    contents: Vec<Content>,
+}
+
+#[derive(Deserialize)]
+struct TextResponse {
+    candidates: Vec<TextCandidate>,
+}
+
+#[derive(Deserialize)]
+struct TextCandidate {
+    content: TextContent,
+}
+
+#[derive(Deserialize)]
+struct TextContent {
+    parts: Vec<TextPart>,
+}
+
+#[derive(Deserialize)]
+struct TextPart {
+    text: String,
+}
+
+pub async fn generate_filename(
+    emojis: &[String],
+    modifier: Option<&str>,
+    api_key: &str,
+) -> Result<String, String> {
+    let client = Client::new();
+
+    let emoji_str = emojis.join(" ");
+    let prompt = match modifier {
+        Some(m) if !m.trim().is_empty() => format!(
+            "Generate a short filename (2-4 words, snake_case, no extension) for an emoji that combines: {} with style: {}. Reply with ONLY the filename, nothing else.",
+            emoji_str, m.trim()
+        ),
+        _ => format!(
+            "Generate a short filename (2-4 words, snake_case, no extension) for an emoji that combines: {}. Reply with ONLY the filename, nothing else.",
+            emoji_str
+        ),
+    };
+
+    let request = TextRequest {
+        contents: vec![Content {
+            parts: vec![Part { text: prompt }],
+        }],
+    };
+
+    let response = client
+        .post(GEMINI_TEXT_ENDPOINT)
+        .header("x-goog-api-key", api_key)
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err("API error".to_string());
+    }
+
+    let text_response: TextResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    if let Some(candidate) = text_response.candidates.first() {
+        if let Some(part) = candidate.content.parts.first() {
+            return Ok(part.text.trim().to_string());
+        }
+    }
+
+    Err("No text in response".to_string())
 }

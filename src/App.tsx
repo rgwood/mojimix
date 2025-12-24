@@ -107,6 +107,8 @@ function App() {
             <ImagePreview
               images={result.images}
               mimeType={result.mime_type}
+              emojis={selectedEmojis}
+              modifier={modifier}
             />
           )}
 

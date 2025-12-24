@@ -76,14 +76,55 @@ fn build_prompt(emojis: &[String], modifier: Option<&str>) -> String {
 }
 
 #[tauri::command]
-async fn save_emoji_image(image_base64: String, file_path: String) -> Result<(), String> {
+async fn save_emoji_image(
+    image_base64: String,
+    emojis: Vec<String>,
+    modifier: Option<String>,
+) -> Result<String, String> {
+    let api_key =
+        env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY environment variable not set")?;
+
     let image_bytes = STANDARD
         .decode(&image_base64)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
+    // Generate filename using Gemini
+    let name = gemini::generate_filename(&emojis, modifier.as_deref(), &api_key)
+        .await
+        .unwrap_or_else(|_| "emoji".to_string());
+
+    let downloads = dirs::download_dir()
+        .ok_or_else(|| "Could not find Downloads directory".to_string())?;
+
+    // Find a unique filename
+    let base_name = sanitize_filename(&name);
+    let mut file_path = downloads.join(format!("{}.png", base_name));
+    let mut counter = 2;
+
+    while file_path.exists() {
+        file_path = downloads.join(format!("{}_{}.png", base_name, counter));
+        counter += 1;
+    }
+
     fs::write(&file_path, &image_bytes).map_err(|e| format!("Failed to save file: {}", e))?;
 
-    Ok(())
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+fn sanitize_filename(name: &str) -> String {
+    name.chars()
+        .filter_map(|c| {
+            if c.is_ascii_alphanumeric() {
+                Some(c.to_ascii_lowercase())
+            } else if c == '_' || c == '-' || c == ' ' {
+                Some('_')
+            } else {
+                None
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string()
 }
 
 #[tauri::command]

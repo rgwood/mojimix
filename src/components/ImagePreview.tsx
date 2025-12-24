@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 
 interface Props {
   images: string[];
   mimeType: string;
+  emojis: string[];
+  modifier?: string;
 }
 
-export function ImagePreview({ images, mimeType }: Props) {
+export function ImagePreview({ images, mimeType, emojis, modifier }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [savedPath, setSavedPath] = useState<string | null>(null);
 
   const selectedImage = selectedIndex !== null ? images[selectedIndex] : null;
   const imageSrc = selectedImage ? `data:${mimeType};base64,${selectedImage}` : null;
@@ -16,17 +18,12 @@ export function ImagePreview({ images, mimeType }: Props) {
   const handleSave = async () => {
     if (!selectedImage) return;
     try {
-      const filePath = await save({
-        defaultPath: "emoji.png",
-        filters: [{ name: "PNG Image", extensions: ["png"] }],
+      const path = await invoke<string>("save_emoji_image", {
+        imageBase64: selectedImage,
+        emojis,
+        modifier: modifier || null,
       });
-
-      if (filePath) {
-        await invoke("save_emoji_image", {
-          imageBase64: selectedImage,
-          filePath,
-        });
-      }
+      setSavedPath(path);
     } catch (error) {
       console.error("Failed to save:", error);
     }
@@ -82,19 +79,26 @@ export function ImagePreview({ images, mimeType }: Props) {
       </div>
 
       {selectedIndex !== null && (
-        <div className="mt-4 flex justify-center gap-3">
-          <button
-            onClick={handleSave}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            Save PNG
-          </button>
-          <button
-            onClick={handleCopyToClipboard}
-            className="rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-          >
-            Copy to Clipboard
-          </button>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={handleSave}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            >
+              Save to Downloads
+            </button>
+            <button
+              onClick={handleCopyToClipboard}
+              className="rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              Copy to Clipboard
+            </button>
+          </div>
+          {savedPath && (
+            <div className="text-sm text-green-600">
+              Saved: {savedPath.split("/").pop()}
+            </div>
+          )}
         </div>
       )}
     </div>
