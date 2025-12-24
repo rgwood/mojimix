@@ -56,8 +56,8 @@ fn build_prompt(emojis: &[String], modifier: Option<&str>) -> String {
     let base_prompt = format!(
         "Create a single emoji that combines these emojis into one: {}. \
          Style: Standard Unicode emoji style like Google Noto Emoji or Apple emoji. \
-         3D-ish with subtle gradients and soft shadows, rounded glossy appearance, \
-         warm vibrant colors. Single centered icon on a solid bright green (#00FF00) background. \
+         3D-ish with subtle gradients, rounded glossy appearance, warm vibrant colors. \
+         NO shadows, NO drop shadows, NO glow effects. Single centered icon on a solid bright green (#00FF00) background. \
          Must look like a native system emoji, not flat or illustrated. \
          The background MUST be pure bright green (#00FF00) with no gradients or variations.",
         emoji_str
