@@ -11,7 +11,9 @@
       "Bash(cargo check:*)",
       "Bash(convert:*)",
       "Bash(file:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Skill(frontend-design)",
+      "Bash(cat:*)"
     ]
   }
 }

@@ -13,7 +13,9 @@ export function ImagePreview({ images, mimeType, emojis, modifier }: Props) {
   const [savedPath, setSavedPath] = useState<string | null>(null);
 
   const selectedImage = selectedIndex !== null ? images[selectedIndex] : null;
-  const imageSrc = selectedImage ? `data:${mimeType};base64,${selectedImage}` : null;
+  const imageSrc = selectedImage
+    ? `data:${mimeType};base64,${selectedImage}`
+    : null;
 
   const handleSave = async () => {
     if (!selectedImage) return;
@@ -43,60 +45,70 @@ export function ImagePreview({ images, mimeType, emojis, modifier }: Props) {
   };
 
   return (
-    <div className="mt-6 rounded-xl bg-gray-50 p-4">
-      <div className="mb-3 text-sm font-medium text-gray-700">
-        Generated Emojis (click to select):
+    <div className="border-retro mt-6 rounded-lg bg-[var(--bg-secondary)] p-4">
+      <div className="font-pixel mb-3 text-sm text-[var(--electric-blue)]">
+        &gt; GENERATED EMOJIS_
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* 2x2 Grid with polaroid-style frames */}
+      <div className="grid grid-cols-2 gap-4">
         {images.map((img, index) => (
           <button
             key={index}
             onClick={() => setSelectedIndex(index)}
-            className={`aspect-square overflow-hidden rounded-lg shadow transition-all ${
+            className={`animate-pop group relative overflow-hidden rounded-lg transition-all ${
               selectedIndex === index
-                ? "ring-4 ring-purple-500 ring-offset-2"
-                : "hover:shadow-lg"
+                ? "border-retro-blue pulse-glow"
+                : "border-retro hover:border-[var(--hot-pink)]"
             }`}
-            style={{
-              backgroundImage: `
-                linear-gradient(45deg, #ccc 25%, transparent 25%),
-                linear-gradient(-45deg, #ccc 25%, transparent 25%),
-                linear-gradient(45deg, transparent 75%, #ccc 75%),
-                linear-gradient(-45deg, transparent 75%, #ccc 75%)
-              `,
-              backgroundSize: "16px 16px",
-              backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
-            }}
+            style={{ animationDelay: `${index * 0.1}s` }}
           >
-            <img
-              src={`data:${mimeType};base64,${img}`}
-              alt={`Generated emoji ${index + 1}`}
-              className="h-full w-full object-contain"
-            />
+            {/* Polaroid frame */}
+            <div className="bg-[var(--surface-elevated)] p-2 pb-4">
+              {/* Checkered background for transparency */}
+              <div className="checkered-dark aspect-square overflow-hidden rounded">
+                <img
+                  src={`data:${mimeType};base64,${img}`}
+                  alt={`Generated emoji ${index + 1}`}
+                  className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                />
+              </div>
+              {/* Polaroid label */}
+              <div className="font-pixel mt-2 text-center text-xs text-[var(--text-muted)]">
+                #{String(index + 1).padStart(2, "0")}
+              </div>
+            </div>
+
+            {/* Selection indicator */}
+            {selectedIndex === index && (
+              <div className="font-pixel absolute top-1 right-1 rounded bg-[var(--electric-blue)] px-2 py-0.5 text-xs text-[var(--bg-primary)]">
+                SELECTED
+              </div>
+            )}
           </button>
         ))}
       </div>
 
+      {/* Action buttons */}
       {selectedIndex !== null && (
-        <div className="mt-4 flex flex-col items-center gap-2">
+        <div className="mt-4 flex flex-col items-center gap-3">
           <div className="flex justify-center gap-3">
             <button
               onClick={handleSave}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              className="btn-bevel font-pixel rounded-lg bg-[var(--electric-blue)] px-4 py-2 text-sm font-bold text-[var(--bg-primary)]"
             >
-              Save to Downloads
+              SAVE TO DOWNLOADS
             </button>
             <button
               onClick={handleCopyToClipboard}
-              className="rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+              className="btn-bevel font-pixel rounded-lg bg-[var(--border-chunky)] px-4 py-2 text-sm font-bold text-white"
             >
-              Copy to Clipboard
+              COPY TO CLIPBOARD
             </button>
           </div>
           {savedPath && (
-            <div className="text-sm text-green-600">
-              Saved: {savedPath.split("/").pop()}
+            <div className="font-pixel text-sm text-[var(--lime)]">
+              * SAVED: {savedPath.split("/").pop()}
             </div>
           )}
         </div>
