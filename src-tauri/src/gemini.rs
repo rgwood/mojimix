@@ -118,17 +118,27 @@ pub async fn generate_emoji_image(prompt: &str, api_key: &str) -> Result<Vec<u8>
 }
 
 pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<Vec<u8>, String> {
-    use image::ImageFormat;
+    use image::{ImageFormat, Rgba};
     use std::io::Cursor;
 
     let img = image::load_from_memory(image_bytes)
         .map_err(|e| format!("Failed to load image: {}", e))?;
 
     let resized = img.resize_exact(128, 128, image::imageops::FilterType::Lanczos3);
+    let mut rgba = resized.to_rgba8();
+
+    // Replace bright green (#00FF00) background with transparency
+    // Use a tolerance to catch near-green pixels
+    for pixel in rgba.pixels_mut() {
+        let Rgba([r, g, b, _]) = *pixel;
+        // Check if pixel is close to bright green
+        if r < 60 && g > 200 && b < 60 {
+            *pixel = Rgba([0, 0, 0, 0]);
+        }
+    }
 
     let mut output = Cursor::new(Vec::new());
-    resized
-        .write_to(&mut output, ImageFormat::Png)
+    rgba.write_to(&mut output, ImageFormat::Png)
         .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
     Ok(output.into_inner())
