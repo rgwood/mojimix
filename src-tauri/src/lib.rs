@@ -3,6 +3,7 @@ mod gemini;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 #[derive(serde::Serialize)]
 struct GenerationResult {
@@ -10,13 +11,73 @@ struct GenerationResult {
     mime_type: String,
 }
 
+/// Get the path to the API key file
+fn api_key_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|p| p.join("mojimix").join("api_key"))
+}
+
+/// Get API key from env var first, then from config file
+fn get_api_key_internal() -> Option<String> {
+    // First check environment variable
+    if let Ok(key) = env::var("GEMINI_API_KEY") {
+        if !key.trim().is_empty() {
+            return Some(key);
+        }
+    }
+
+    // Then check config file
+    if let Some(path) = api_key_path() {
+        if let Ok(contents) = fs::read_to_string(&path) {
+            let key = contents.trim().to_string();
+            if !key.is_empty() {
+                return Some(key);
+            }
+        }
+    }
+
+    None
+}
+
+#[tauri::command]
+fn check_api_key() -> bool {
+    get_api_key_internal().is_some()
+}
+
+#[tauri::command]
+fn save_api_key(key: String) -> Result<(), String> {
+    let key = key.trim().to_string();
+    if key.is_empty() {
+        return Err("API key cannot be empty".to_string());
+    }
+
+    let path = api_key_path().ok_or("Could not determine config directory")?;
+
+    // Create parent directory if needed
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create config directory: {}", e))?;
+    }
+
+    fs::write(&path, &key).map_err(|e| format!("Failed to save API key: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_api_key() -> Result<(), String> {
+    if let Some(path) = api_key_path() {
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| format!("Failed to remove API key: {}", e))?;
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn generate_emoji(
     emojis: Vec<String>,
     modifier: Option<String>,
 ) -> Result<GenerationResult, String> {
-    let api_key =
-        env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY environment variable not set")?;
+    let api_key = get_api_key_internal().ok_or("No API key configured")?;
 
     let prompt = build_prompt(&emojis, modifier.as_deref());
 
@@ -83,8 +144,7 @@ async fn save_emoji_image(
     emojis: Vec<String>,
     modifier: Option<String>,
 ) -> Result<String, String> {
-    let api_key =
-        env::var("GEMINI_API_KEY").map_err(|_| "GEMINI_API_KEY environment variable not set")?;
+    let api_key = get_api_key_internal().ok_or("No API key configured")?;
 
     let image_bytes = STANDARD
         .decode(&image_base64)
@@ -129,11 +189,6 @@ fn sanitize_filename(name: &str) -> String {
         .to_string()
 }
 
-#[tauri::command]
-fn check_api_key() -> bool {
-    env::var("GEMINI_API_KEY").is_ok()
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -142,7 +197,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             generate_emoji,
             save_emoji_image,
-            check_api_key
+            check_api_key,
+            save_api_key,
+            clear_api_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
