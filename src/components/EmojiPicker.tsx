@@ -16,13 +16,13 @@ export function EmojiPicker({
   };
 
   return (
-    <div className="emoji-picker-container">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Selected emojis display */}
-      <div className="border-retro-pink mb-4 min-h-[70px] rounded-lg bg-[var(--bg-secondary)] p-3">
+      <div className="border-retro-pink mb-3 shrink-0 rounded-lg bg-[var(--bg-secondary)] p-3">
         <div className="font-pixel mb-2 text-xs text-[var(--hot-pink)]">
           &gt; SELECTED [{selectedEmojis.length}]:
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-h-[40px] flex-wrap gap-2">
           {selectedEmojis.map((emoji, index) => (
             <button
               key={index}
@@ -31,7 +31,6 @@ export function EmojiPicker({
               title="Click to remove"
             >
               {emoji}
-              {/* X indicator on hover */}
               <span className="font-pixel absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--hot-pink)] text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100">
                 X
               </span>
@@ -45,15 +44,17 @@ export function EmojiPicker({
         </div>
       </div>
 
-      {/* Emoji picker with dark theme */}
-      <EmojiPickerReact
-        onEmojiClick={handleEmojiClick}
-        theme={Theme.DARK}
-        width="100%"
-        height={280}
-        searchPlaceholder="Search emojis..."
-        previewConfig={{ showPreview: false }}
-      />
+      {/* Emoji picker - fills remaining space */}
+      <div className="emoji-picker-flex min-h-[200px] flex-1">
+        <EmojiPickerReact
+          onEmojiClick={handleEmojiClick}
+          theme={Theme.DARK}
+          width="100%"
+          height="100%"
+          searchPlaceholder="Search emojis..."
+          previewConfig={{ showPreview: false }}
+        />
+      </div>
     </div>
   );
 }

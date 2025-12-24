@@ -247,6 +247,17 @@ body {
 }
 
 /* Override emoji-picker-react styles */
+.emoji-picker-flex {
+  display: flex;
+  flex-direction: column;
+}
+
+.emoji-picker-flex .EmojiPickerReact {
+  flex: 1 !important;
+  height: auto !important;
+  min-height: 0 !important;
+}
+
 .EmojiPickerReact {
   --epr-bg-color: var(--surface) !important;
   --epr-category-label-bg-color: var(--surface-elevated) !important;
