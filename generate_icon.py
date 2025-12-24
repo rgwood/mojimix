@@ -81,11 +81,12 @@ def create_icon_sizes(source_image: Image.Image, output_dir: Path):
     if source_image.mode != "RGBA":
         source_image = source_image.convert("RGBA")
 
-    # Required sizes for Tauri
+    # Required sizes for Tauri (including larger sizes for Linux)
     sizes = {
         "32x32.png": 32,
         "128x128.png": 128,
         "128x128@2x.png": 256,
+        "icon.png": 512,  # Large icon for Linux AppImage/deb
     }
 
     for filename, size in sizes.items():
@@ -94,18 +95,23 @@ def create_icon_sizes(source_image: Image.Image, output_dir: Path):
         print(f"  Created {filename}")
 
     # Create .ico (Windows) - contains multiple sizes
-    ico_sizes = [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    ico_images = [source_image.resize(s, Image.Resampling.LANCZOS) for s in ico_sizes]
+    ico_sizes = [16, 32, 48, 64, 128, 256]
+    ico_images = []
+    for size in ico_sizes:
+        img = source_image.resize((size, size), Image.Resampling.LANCZOS)
+        ico_images.append(img)
+
+    # Save ICO with all sizes embedded
     ico_images[0].save(
         output_dir / "icon.ico",
         format="ICO",
-        sizes=ico_sizes
+        append_images=ico_images[1:],
+        sizes=[(s, s) for s in ico_sizes]
     )
     print("  Created icon.ico")
 
-    # Create .icns (macOS) - just copy the 128x128 for now
-    # (proper .icns would need icnsutil or similar, but this works for dev)
-    source_image.resize((128, 128), Image.Resampling.LANCZOS).save(
+    # Create .icns (macOS) - save as PNG, Tauri handles conversion
+    source_image.resize((512, 512), Image.Resampling.LANCZOS).save(
         output_dir / "icon.icns", "PNG"
     )
     print("  Created icon.icns")

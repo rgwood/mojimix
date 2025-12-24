@@ -1,6 +1,10 @@
 # MojiMix
 
-Desktop app for generating custom emoji mashups using Google Gemini's image generation API.
+A desktop app for generating custom emoji mashups using Nano Banana Pro.
+
+## Why?
+
+I've been doing emoji "costumes" for a long time... like instead of a boring, pedestrian 😱 I'll find a cowboy-scream emoji on [Emoji Supply](https://emoji.supply/kitchen/) and upload it to Slack.  Now I can generate images for any arbitrary combination of emojis, neat.
 
 ## Quick Start
 
