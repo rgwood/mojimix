@@ -105,7 +105,7 @@ function App() {
 
           {result && (
             <ImagePreview
-              imageBase64={result.image_base64}
+              images={result.images}
               mimeType={result.mime_type}
             />
           )}

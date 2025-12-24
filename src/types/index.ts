@@ -1,5 +1,5 @@
 export interface GenerationResult {
-  image_base64: string;
+  images: string[];
   mime_type: string;
 }
 

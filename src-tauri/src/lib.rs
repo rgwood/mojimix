@@ -6,7 +6,7 @@ use std::fs;
 
 #[derive(serde::Serialize)]
 struct GenerationResult {
-    image_base64: String,
+    images: Vec<String>,
     mime_type: String,
 }
 
@@ -20,14 +20,32 @@ async fn generate_emoji(
 
     let prompt = build_prompt(&emojis, modifier.as_deref());
 
-    let image_bytes = gemini::generate_emoji_image(&prompt, &api_key).await?;
+    // Generate 4 images in parallel
+    let futures: Vec<_> = (0..4)
+        .map(|_| {
+            let prompt = prompt.clone();
+            let api_key = api_key.clone();
+            async move {
+                let image_bytes = gemini::generate_emoji_image(&prompt, &api_key).await?;
+                let resized_bytes = gemini::resize_to_emoji(&image_bytes)?;
+                Ok::<String, String>(STANDARD.encode(&resized_bytes))
+            }
+        })
+        .collect();
 
-    let resized_bytes = gemini::resize_to_emoji(&image_bytes)?;
+    let results = futures::future::join_all(futures).await;
 
-    let image_base64 = STANDARD.encode(&resized_bytes);
+    let images: Vec<String> = results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .collect();
+
+    if images.is_empty() {
+        return Err("Failed to generate any images".to_string());
+    }
 
     Ok(GenerationResult {
-        image_base64,
+        images,
         mime_type: "image/png".to_string(),
     })
 }
