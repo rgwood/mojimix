@@ -22,3 +22,9 @@ dirs = "6"
 [profile.release]
 strip = true
 lto = true
+
+[profile.profiling]
+inherits = "release"
+strip = false
+debug = true
+lto = false
