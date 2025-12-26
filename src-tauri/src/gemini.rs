@@ -173,16 +173,52 @@ pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<Vec<u8>, String> {
         ));
     }
 
-    // Replace background color with transparency
+    // Flood fill from edges to remove background (preserves interior greens)
     let bg_tolerance = 40i16;
-    for pixel in rgba.pixels_mut() {
-        let Rgba([r, g, b, _]) = *pixel;
-        let dr = (r as i16 - bg_r as i16).abs();
-        let dg = (g as i16 - bg_g as i16).abs();
-        let db = (b as i16 - bg_b as i16).abs();
-        if dr < bg_tolerance && dg < bg_tolerance && db < bg_tolerance {
-            *pixel = Rgba([0, 0, 0, 0]);
+    let mut visited = vec![vec![false; height as usize]; width as usize];
+    let mut stack: Vec<(u32, u32)> = Vec::new();
+
+    // Helper to check if pixel matches background
+    let matches_bg = |pixel: &Rgba<u8>| {
+        let dr = (pixel.0[0] as i16 - bg_r as i16).abs();
+        let dg = (pixel.0[1] as i16 - bg_g as i16).abs();
+        let db = (pixel.0[2] as i16 - bg_b as i16).abs();
+        dr < bg_tolerance && dg < bg_tolerance && db < bg_tolerance
+    };
+
+    // Seed flood fill from all edge pixels
+    for x in 0..width {
+        stack.push((x, 0));
+        stack.push((x, height - 1));
+    }
+    for y in 1..height - 1 {
+        stack.push((0, y));
+        stack.push((width - 1, y));
+    }
+
+    // Flood fill
+    while let Some((x, y)) = stack.pop() {
+        if x >= width || y >= height {
+            continue;
         }
+        if visited[x as usize][y as usize] {
+            continue;
+        }
+        visited[x as usize][y as usize] = true;
+
+        let pixel = rgba.get_pixel(x, y);
+        if !matches_bg(pixel) {
+            continue;
+        }
+
+        // Mark as transparent
+        rgba.put_pixel(x, y, Rgba([0, 0, 0, 0]));
+
+        // Add neighbors
+        if x > 0 { stack.push((x - 1, y)); }
+        if x < width - 1 { stack.push((x + 1, y)); }
+        if y > 0 { stack.push((x, y - 1)); }
+        if y < height - 1 { stack.push((x, y + 1)); }
     }
 
     // Find bounding box of non-transparent pixels
