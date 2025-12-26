@@ -10,7 +10,7 @@ export function useGeminiGeneration() {
   });
 
   const generate = useCallback(
-    async (emojis: string[], modifier?: string) => {
+    async (emojis: string[], modifier?: string, fastModel?: boolean) => {
       if (emojis.length === 0) {
         setState((prev) => ({
           ...prev,
@@ -25,6 +25,7 @@ export function useGeminiGeneration() {
         const result = await invoke<GenerationResult>("generate_emoji", {
           emojis,
           modifier: modifier || null,
+          fastModel: fastModel ?? false,
         });
 
         setState({ isLoading: false, error: null, result });

@@ -80,6 +80,7 @@ function App() {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [modifier, setModifier] = useState("");
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [fastModel, setFastModel] = useState(true);
 
   const { isLoading, error, result, generate, reset } = useGeminiGeneration();
 
@@ -102,7 +103,7 @@ function App() {
   };
 
   const handleGenerate = () => {
-    generate(selectedEmojis, modifier);
+    generate(selectedEmojis, modifier, fastModel);
   };
 
   const handleClear = () => {
@@ -137,6 +138,31 @@ function App() {
 
           <TextModifier value={modifier} onChange={setModifier} />
 
+          {/* Model toggle */}
+          <div className="mt-4">
+            <div className="font-pixel mb-2 flex items-center justify-between text-sm text-[var(--cyber-yellow)]">
+              <span>&gt; MODEL:</span>
+              <button
+                onClick={() => setFastModel(!fastModel)}
+                className="flex items-center gap-2"
+              >
+                <span className={fastModel ? "text-[var(--lime)]" : "text-[var(--text-muted)]"}>
+                  FAST
+                </span>
+                <div className={`relative h-5 w-9 rounded-full border-2 transition-colors ${
+                  fastModel ? "border-[var(--lime)] bg-[var(--lime)]" : "border-[var(--electric-blue)] bg-[var(--electric-blue)]"
+                }`}>
+                  <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
+                    fastModel ? "translate-x-0.5" : "translate-x-4"
+                  }`} />
+                </div>
+                <span className={fastModel ? "text-[var(--text-muted)]" : "text-[var(--electric-blue)]"}>
+                  PRO
+                </span>
+              </button>
+            </div>
+          </div>
+
           <GenerateButton
             onClick={handleGenerate}
             disabled={selectedEmojis.length === 0}
@@ -166,7 +192,7 @@ function App() {
 
           {result ? (
             <ImagePreview
-              images={result.images}
+              results={result.results}
               mimeType={result.mime_type}
               emojis={selectedEmojis}
               modifier={modifier}

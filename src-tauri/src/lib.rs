@@ -6,8 +6,14 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(serde::Serialize)]
+struct ImageResult {
+    image: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(serde::Serialize)]
 struct GenerationResult {
-    images: Vec<String>,
+    results: Vec<ImageResult>,
     mime_type: String,
 }
 
@@ -76,8 +82,10 @@ fn clear_api_key() -> Result<(), String> {
 async fn generate_emoji(
     emojis: Vec<String>,
     modifier: Option<String>,
+    fast_model: Option<bool>,
 ) -> Result<GenerationResult, String> {
     let api_key = get_api_key_internal().ok_or("No API key configured")?;
+    let use_fast = fast_model.unwrap_or(false);
 
     let prompt = build_prompt(&emojis, modifier.as_deref());
 
@@ -87,26 +95,35 @@ async fn generate_emoji(
             let prompt = prompt.clone();
             let api_key = api_key.clone();
             async move {
-                let image_bytes = gemini::generate_emoji_image(&prompt, &api_key).await?;
+                let image_bytes = gemini::generate_emoji_image(&prompt, &api_key, use_fast).await?;
                 let resized_bytes = gemini::resize_to_emoji(&image_bytes)?;
                 Ok::<String, String>(STANDARD.encode(&resized_bytes))
             }
         })
         .collect();
 
-    let results = futures::future::join_all(futures).await;
+    let futures_results = futures::future::join_all(futures).await;
 
-    let images: Vec<String> = results
+    let results: Vec<ImageResult> = futures_results
         .into_iter()
-        .filter_map(|r| r.ok())
+        .map(|r| match r {
+            Ok(img) => ImageResult { image: Some(img), error: None },
+            Err(e) => ImageResult { image: None, error: Some(e) },
+        })
         .collect();
 
-    if images.is_empty() {
-        return Err("Failed to generate any images".to_string());
+    // Check if all failed
+    let has_any_success = results.iter().any(|r| r.image.is_some());
+    if !has_any_success {
+        let first_error = results.iter()
+            .find_map(|r| r.error.as_ref())
+            .map(|e| e.as_str())
+            .unwrap_or("Unknown error");
+        return Err(format!("Failed to generate images: {}", first_error));
     }
 
     Ok(GenerationResult {
-        images,
+        results,
         mime_type: "image/png".to_string(),
     })
 }

@@ -1,18 +1,20 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import type { ImageResult } from "../types";
 
 interface Props {
-  images: string[];
+  results: ImageResult[];
   mimeType: string;
   emojis: string[];
   modifier?: string;
 }
 
-export function ImagePreview({ images, mimeType, emojis, modifier }: Props) {
+export function ImagePreview({ results, mimeType, emojis, modifier }: Props) {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [savedPath, setSavedPath] = useState<string | null>(null);
 
-  const selectedImage = selectedIndex !== null ? images[selectedIndex] : null;
+  const selectedResult = selectedIndex !== null ? results[selectedIndex] : null;
+  const selectedImage = selectedResult?.image ?? null;
   const imageSrc = selectedImage
     ? `data:${mimeType};base64,${selectedImage}`
     : null;
@@ -50,28 +52,40 @@ export function ImagePreview({ images, mimeType, emojis, modifier }: Props) {
     <div className="flex h-full flex-col">
       {/* 2x2 Grid - takes all available space */}
       <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
-        {images.map((img, index) => (
+        {results.map((result, index) => (
           <button
             key={index}
-            onClick={() => setSelectedIndex(index)}
+            onClick={() => result.image && setSelectedIndex(index)}
+            disabled={!result.image}
             className={`animate-pop group relative min-h-0 overflow-hidden rounded-lg transition-all ${
-              selectedIndex === index
-                ? "border-retro-blue pulse-glow"
-                : "border-retro hover:border-[var(--hot-pink)]"
+              !result.image
+                ? "border-retro cursor-not-allowed opacity-60"
+                : selectedIndex === index
+                  ? "border-retro-blue pulse-glow"
+                  : "border-retro hover:border-[var(--hot-pink)]"
             }`}
             style={{ animationDelay: `${index * 0.1}s` }}
           >
             <div className="flex h-full items-center justify-center bg-[var(--surface-elevated)] p-2">
-              <div className="checkered-dark aspect-square h-full max-h-full overflow-hidden rounded">
-                <img
-                  src={`data:${mimeType};base64,${img}`}
-                  alt={`Generated emoji ${index + 1}`}
-                  className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                />
-              </div>
+              {result.image ? (
+                <div className="checkered-dark aspect-square h-full max-h-full overflow-hidden rounded">
+                  <img
+                    src={`data:${mimeType};base64,${result.image}`}
+                    alt={`Generated emoji ${index + 1}`}
+                    className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center p-3 text-center">
+                  <span className="font-pixel mb-2 text-sm text-[var(--hot-pink)]">FAILED</span>
+                  <span className="text-xs text-[var(--text-muted)] line-clamp-3">
+                    {result.error || "Unknown error"}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {selectedIndex === index && (
+            {result.image && selectedIndex === index && (
               <div className="font-pixel absolute top-1 right-1 rounded bg-[var(--electric-blue)] px-2 py-0.5 text-xs text-[var(--bg-primary)]">
                 SELECTED
               </div>

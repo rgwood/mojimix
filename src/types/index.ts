@@ -1,5 +1,10 @@
+export interface ImageResult {
+  image: string | null;
+  error: string | null;
+}
+
 export interface GenerationResult {
-  images: string[];
+  results: ImageResult[];
   mime_type: string;
 }
 

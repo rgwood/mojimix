@@ -2,8 +2,11 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-const GEMINI_IMAGE_ENDPOINT: &str =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent";
+const GEMINI_API_BASE: &str = "https://generativelanguage.googleapis.com/v1beta/models";
+
+// Image generation models
+const MODEL_PRO: &str = "gemini-3-pro-image-preview";    // Nano Banana Pro - higher quality
+const MODEL_FAST: &str = "gemini-2.5-flash-image"; // Nano Banana - faster/cheaper
 
 const GEMINI_TEXT_ENDPOINT: &str =
     "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -67,8 +70,11 @@ struct InlineData {
     data: String,
 }
 
-pub async fn generate_emoji_image(prompt: &str, api_key: &str) -> Result<Vec<u8>, String> {
+pub async fn generate_emoji_image(prompt: &str, api_key: &str, use_fast_model: bool) -> Result<Vec<u8>, String> {
     let client = Client::new();
+
+    let model = if use_fast_model { MODEL_FAST } else { MODEL_PRO };
+    let endpoint = format!("{}/{}:generateContent", GEMINI_API_BASE, model);
 
     let request = GeminiRequest {
         contents: vec![Content {
@@ -85,7 +91,7 @@ pub async fn generate_emoji_image(prompt: &str, api_key: &str) -> Result<Vec<u8>
     };
 
     let response = client
-        .post(GEMINI_IMAGE_ENDPOINT)
+        .post(&endpoint)
         .header("x-goog-api-key", api_key)
         .header("Content-Type", "application/json")
         .json(&request)
@@ -128,17 +134,58 @@ pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("Failed to load image: {}", e))?;
 
     let mut rgba = img.to_rgba8();
+    let (width, height) = rgba.dimensions();
 
-    // Replace bright green (#00FF00) background with transparency
+    // Sample the 4 corners to detect background color
+    let corners = [
+        rgba.get_pixel(0, 0),
+        rgba.get_pixel(width - 1, 0),
+        rgba.get_pixel(0, height - 1),
+        rgba.get_pixel(width - 1, height - 1),
+    ];
+
+    // Check all corners are similar (within tolerance)
+    let tolerance = 50i16;
+    let ref_pixel = corners[0];
+    for (i, corner) in corners.iter().enumerate().skip(1) {
+        let dr = (corner.0[0] as i16 - ref_pixel.0[0] as i16).abs();
+        let dg = (corner.0[1] as i16 - ref_pixel.0[1] as i16).abs();
+        let db = (corner.0[2] as i16 - ref_pixel.0[2] as i16).abs();
+        if dr > tolerance || dg > tolerance || db > tolerance {
+            return Err(format!(
+                "Background inconsistent: corner 0 is ({},{},{}), corner {} is ({},{},{})",
+                ref_pixel.0[0], ref_pixel.0[1], ref_pixel.0[2],
+                i, corner.0[0], corner.0[1], corner.0[2]
+            ));
+        }
+    }
+
+    // Use average of corners as background color
+    let bg_r = corners.iter().map(|c| c.0[0] as u16).sum::<u16>() / 4;
+    let bg_g = corners.iter().map(|c| c.0[1] as u16).sum::<u16>() / 4;
+    let bg_b = corners.iter().map(|c| c.0[2] as u16).sum::<u16>() / 4;
+
+    // Verify background is green-dominant
+    if bg_g <= bg_r || bg_g <= bg_b {
+        return Err(format!(
+            "Background not green-dominant: ({},{},{})",
+            bg_r, bg_g, bg_b
+        ));
+    }
+
+    // Replace background color with transparency
+    let bg_tolerance = 40i16;
     for pixel in rgba.pixels_mut() {
         let Rgba([r, g, b, _]) = *pixel;
-        if r < 60 && g > 200 && b < 60 {
+        let dr = (r as i16 - bg_r as i16).abs();
+        let dg = (g as i16 - bg_g as i16).abs();
+        let db = (b as i16 - bg_b as i16).abs();
+        if dr < bg_tolerance && dg < bg_tolerance && db < bg_tolerance {
             *pixel = Rgba([0, 0, 0, 0]);
         }
     }
 
     // Find bounding box of non-transparent pixels
-    let (width, height) = rgba.dimensions();
     let mut min_x = width;
     let mut min_y = height;
     let mut max_x = 0u32;
