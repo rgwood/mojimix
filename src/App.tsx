@@ -6,34 +6,6 @@ import { GenerateButton } from "./components/GenerateButton";
 import { ImagePreview } from "./components/ImagePreview";
 import { useGeminiGeneration } from "./hooks/useGeminiGeneration";
 
-// Floating pixel decoration component
-function FloatingPixels() {
-  return (
-    <div className="pointer-events-none fixed inset-0 overflow-hidden">
-      <div
-        className="floating-pixel absolute h-2 w-2 bg-[var(--hot-pink)]"
-        style={{ left: "5%", top: "15%", animationDelay: "0s" }}
-      />
-      <div
-        className="floating-pixel absolute h-3 w-3 bg-[var(--hot-pink)]"
-        style={{ left: "95%", top: "10%", animationDelay: "1s" }}
-      />
-      <div
-        className="floating-pixel absolute h-3 w-3 bg-[var(--electric-blue)]"
-        style={{ left: "8%", top: "85%", animationDelay: "1.5s" }}
-      />
-      <div
-        className="floating-pixel absolute h-2 w-2 bg-[var(--electric-blue)]"
-        style={{ left: "92%", top: "75%", animationDelay: "2s" }}
-      />
-      <div
-        className="floating-pixel absolute h-2 w-2 bg-[var(--cyber-yellow)]"
-        style={{ left: "50%", top: "5%", animationDelay: "0.7s" }}
-      />
-    </div>
-  );
-}
-
 function ApiKeySetup({ onSaved }: { onSaved: () => void }) {
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +28,6 @@ function ApiKeySetup({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)] p-6">
-      <FloatingPixels />
       <div className="border-retro relative z-10 w-full max-w-md rounded-lg bg-[var(--surface)] p-6">
         <h1 className="font-pixel mb-2 text-2xl text-[var(--electric-blue)]">
           SETUP
@@ -143,9 +114,7 @@ function App() {
   // Still loading
   if (hasApiKey === null) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
-        <FloatingPixels />
-      </div>
+      <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)]" />
     );
   }
 
@@ -156,8 +125,6 @@ function App() {
 
   return (
     <div className="scanlines flex h-screen flex-col overflow-hidden bg-[var(--bg-primary)] p-3">
-      <FloatingPixels />
-
       {/* Main 2-column layout - fills entire screen */}
       <div className="relative z-20 flex min-h-0 flex-1 gap-3">
         {/* Left column: Controls */}

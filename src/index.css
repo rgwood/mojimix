@@ -176,22 +176,6 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-/* Floating pixel animation */
-@keyframes float-pixel {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 0.6;
-  }
-  50% {
-    transform: translateY(-20px) rotate(180deg);
-    opacity: 1;
-  }
-}
-
-.floating-pixel {
-  animation: float-pixel 3s ease-in-out infinite;
-}
-
 /* Staggered entrance animation */
 @keyframes slide-up {
   from {
