@@ -4,10 +4,12 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use tauri::ipc::Channel;
 
 #[derive(serde::Serialize)]
 struct ImageResult {
-    image: Option<String>,
+    flood_fill: Option<String>,
+    color_key: Option<String>,
     error: Option<String>,
 }
 
@@ -15,6 +17,14 @@ struct ImageResult {
 struct GenerationResult {
     results: Vec<ImageResult>,
     mime_type: String,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct GenerationProgress {
+    index: usize,
+    flood_fill: Option<String>,
+    color_key: Option<String>,
+    error: Option<String>,
 }
 
 /// Get the path to the API key file
@@ -83,39 +93,79 @@ async fn generate_emoji(
     emojis: Vec<String>,
     modifier: Option<String>,
     fast_model: Option<bool>,
+    on_progress: Channel<GenerationProgress>,
 ) -> Result<GenerationResult, String> {
     let api_key = get_api_key_internal().ok_or("No API key configured")?;
     let use_fast = fast_model.unwrap_or(false);
 
     let prompt = build_prompt(&emojis, modifier.as_deref());
 
-    // Generate 4 images in parallel
+    // Generate 4 images in parallel, streaming results as they complete
     let futures: Vec<_> = (0..4)
-        .map(|_| {
+        .map(|index| {
             let prompt = prompt.clone();
             let api_key = api_key.clone();
+            let channel = on_progress.clone();
             async move {
-                let image_bytes = gemini::generate_emoji_image(&prompt, &api_key, use_fast).await?;
-                let resized_bytes = gemini::resize_to_emoji(&image_bytes)?;
-                Ok::<String, String>(STANDARD.encode(&resized_bytes))
+                let result = async {
+                    let image_bytes =
+                        gemini::generate_emoji_image(&prompt, &api_key, use_fast).await?;
+                    let processed = gemini::resize_to_emoji(&image_bytes)?;
+                    Ok::<(String, String), String>((
+                        STANDARD.encode(&processed.flood_fill),
+                        STANDARD.encode(&processed.color_key),
+                    ))
+                }
+                .await;
+
+                // Send progress immediately when this image completes
+                let progress = match &result {
+                    Ok((ff, ck)) => GenerationProgress {
+                        index,
+                        flood_fill: Some(ff.clone()),
+                        color_key: Some(ck.clone()),
+                        error: None,
+                    },
+                    Err(e) => GenerationProgress {
+                        index,
+                        flood_fill: None,
+                        color_key: None,
+                        error: Some(e.clone()),
+                    },
+                };
+                let _ = channel.send(progress);
+
+                (index, result)
             }
         })
         .collect();
 
-    let futures_results = futures::future::join_all(futures).await;
+    let mut indexed_results = futures::future::join_all(futures).await;
 
-    let results: Vec<ImageResult> = futures_results
+    // Sort by index to maintain order in final result
+    indexed_results.sort_by_key(|(idx, _)| *idx);
+
+    let results: Vec<ImageResult> = indexed_results
         .into_iter()
-        .map(|r| match r {
-            Ok(img) => ImageResult { image: Some(img), error: None },
-            Err(e) => ImageResult { image: None, error: Some(e) },
+        .map(|(_, r)| match r {
+            Ok((ff, ck)) => ImageResult {
+                flood_fill: Some(ff),
+                color_key: Some(ck),
+                error: None,
+            },
+            Err(e) => ImageResult {
+                flood_fill: None,
+                color_key: None,
+                error: Some(e),
+            },
         })
         .collect();
 
     // Check if all failed
-    let has_any_success = results.iter().any(|r| r.image.is_some());
+    let has_any_success = results.iter().any(|r| r.flood_fill.is_some());
     if !has_any_success {
-        let first_error = results.iter()
+        let first_error = results
+            .iter()
             .find_map(|r| r.error.as_ref())
             .map(|e| e.as_str())
             .unwrap_or("Unknown error");

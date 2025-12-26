@@ -82,7 +82,8 @@ function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [fastModel, setFastModel] = useState(true);
 
-  const { isLoading, error, result, generate, reset } = useGeminiGeneration();
+  const { isLoading, error, result, slots, generate, reset } =
+    useGeminiGeneration();
 
   const checkApiKey = () => {
     invoke<boolean>("check_api_key").then(setHasApiKey);
@@ -190,32 +191,19 @@ function App() {
             </div>
           )}
 
-          {result ? (
+          {isLoading || result ? (
             <ImagePreview
-              results={result.results}
-              mimeType={result.mime_type}
+              slots={slots}
+              mimeType={result?.mime_type ?? "image/png"}
               emojis={selectedEmojis}
               modifier={modifier}
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
               <div className="font-pixel text-lg text-[var(--text-muted)]">
-                {isLoading ? (
-                  <>
-                    <span className="text-[var(--cyber-yellow)]">
-                      GENERATING...
-                    </span>
-                    <div className="loading-bar mx-auto mt-4 w-48 rounded">
-                      <div className="loading-bar-fill" />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    SELECT EMOJIS
-                    <br />
-                    <span className="text-sm">& HIT GENERATE</span>
-                  </>
-                )}
+                SELECT EMOJIS
+                <br />
+                <span className="text-sm">& HIT GENERATE</span>
               </div>
             </div>
           )}
