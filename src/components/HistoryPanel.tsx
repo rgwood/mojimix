@@ -23,11 +23,15 @@ export function HistoryPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Loading status - always reserve space */}
-      <div className={`mb-3 flex h-6 items-center justify-center gap-2 ${isLoading ? "" : "invisible"}`}>
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-chunky)] border-t-[var(--cyber-yellow)]" />
-        <span className="font-pixel text-sm text-[var(--cyber-yellow)]">
-          {pendingCount} PENDING...
-        </span>
+      <div className="mb-3 flex h-6 items-center justify-center gap-2">
+        {isLoading ? (
+          <>
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--border-chunky)] border-t-[var(--cyber-yellow)]" />
+            <span className="font-pixel text-sm text-[var(--cyber-yellow)]">
+              {pendingCount} PENDING...
+            </span>
+          </>
+        ) : null}
       </div>
 
       {/* Scrollable grid */}
@@ -52,7 +56,7 @@ export function HistoryPanel({
                   onClick={() => onSelect(item.id)}
                   className={`group relative aspect-square overflow-hidden rounded-lg transition-all ${
                     isSelected
-                      ? "border-retro-blue pulse-glow"
+                      ? "border-retro-blue"
                       : item.status === "error"
                         ? "border-retro opacity-70 hover:opacity-100 hover:border-[var(--hot-pink)]"
                         : "border-retro hover:border-[var(--hot-pink)]"
