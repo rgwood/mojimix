@@ -31,7 +31,7 @@ export function HistoryPanel({
   const variants: { key: ImageVariant; label: string }[] = [
     { key: "raw", label: "RAW" },
     { key: "flood", label: "FLOOD" },
-    { key: "colorKey", label: "COLOR KEY" },
+    { key: "colorKey", label: "COLOUR KEY" },
   ];
 
   return (

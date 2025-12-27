@@ -75,7 +75,7 @@ export function SelectionPanel({ selectedItem }: Props) {
   const variants: { key: ImageVariant; label: string }[] = [
     { key: "raw", label: "RAW" },
     { key: "flood", label: "FLOOD" },
-    { key: "colorKey", label: "COLOR KEY" },
+    { key: "colorKey", label: "COLOUR KEY" },
   ];
 
   return (
@@ -139,7 +139,7 @@ export function SelectionPanel({ selectedItem }: Props) {
               <div className="font-pixel mb-1 text-[10px] text-[var(--text-muted)]">
                 {label}
               </div>
-              <div className="aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-[var(--surface-elevated)]">
+              <div className="aspect-square w-full max-w-[200px] overflow-hidden bg-[var(--surface-elevated)]">
                 {variantSrc ? (
                   <img
                     src={variantSrc}

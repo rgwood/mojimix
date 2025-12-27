@@ -206,7 +206,7 @@ fn build_prompt(emojis: &[String], modifier: Option<&str>) -> String {
     let base_prompt = format!(
         "Create a single emoji combining: {}. \
          CRITICAL: Keep it SIMPLE and MINIMAL like standard Unicode emojis. \
-         Copy the exact visual style of Google Noto Emoji - simple shapes, minimal details, clean lines. \
+         Copy the exact visual style of Google Noto Color Emoji - simple shapes, minimal details, clean lines. \
          Do NOT add extra details, textures, or creative interpretations. \
          The result should look like it belongs in the standard emoji keyboard. \
          Soft 3D with subtle gradients, bright saturated colors. \
