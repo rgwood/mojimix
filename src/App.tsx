@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { EmojiPicker } from "./components/EmojiPicker";
 import { TextModifier } from "./components/TextModifier";
 import { GenerateButton } from "./components/GenerateButton";
-import { ImagePreview } from "./components/ImagePreview";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { SelectionPanel } from "./components/SelectionPanel";
 import { useGeminiGeneration } from "./hooks/useGeminiGeneration";
+import type { HistoryItem } from "./types";
 
 function ApiKeySetup({ onSaved }: { onSaved: () => void }) {
   const [apiKey, setApiKey] = useState("");
@@ -76,14 +78,22 @@ function ApiKeySetup({ onSaved }: { onSaved: () => void }) {
   );
 }
 
+const COUNT_OPTIONS = [1, 2, 4, 8] as const;
+
 function App() {
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([]);
   const [modifier, setModifier] = useState("");
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [fastModel, setFastModel] = useState(true);
+  const [generationCount, setGenerationCount] = useState(4);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [useColorKey, setUseColorKey] = useState(false);
 
-  const { isLoading, error, result, slots, generate, reset } =
+  const { isLoading, pendingCount, error, generate } =
     useGeminiGeneration();
+
+  const selectedItem = history.find((h) => h.id === selectedId) ?? null;
 
   const checkApiKey = () => {
     invoke<boolean>("check_api_key").then(setHasApiKey);
@@ -95,22 +105,38 @@ function App() {
 
   const handleEmojiSelect = (emoji: string) => {
     setSelectedEmojis((prev) => [...prev, emoji]);
-    reset();
   };
 
   const handleEmojiRemove = (index: number) => {
     setSelectedEmojis((prev) => prev.filter((_, i) => i !== index));
-    reset();
   };
 
+  const handleItemComplete = useCallback((item: HistoryItem) => {
+    setHistory((prev) => [...prev, item]);
+    // Auto-select first successful item if nothing selected
+    if (item.status === "success") {
+      setSelectedId((current) => current ?? item.id);
+    }
+  }, []);
+
   const handleGenerate = () => {
-    generate(selectedEmojis, modifier, fastModel);
+    generate(
+      selectedEmojis,
+      modifier,
+      fastModel,
+      generationCount,
+      handleItemComplete
+    );
   };
 
   const handleClear = () => {
     setSelectedEmojis([]);
     setModifier("");
-    reset();
+  };
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    setSelectedId(null);
   };
 
   // Still loading
@@ -127,7 +153,7 @@ function App() {
 
   return (
     <div className="scanlines flex h-screen flex-col overflow-hidden bg-[var(--bg-primary)] p-3">
-      {/* Main 2-column layout - fills entire screen */}
+      {/* Main 3-column layout */}
       <div className="relative z-20 flex min-h-0 flex-1 gap-3">
         {/* Left column: Controls */}
         <div className="border-retro flex w-[340px] shrink-0 flex-col rounded-lg bg-[var(--surface)] p-4">
@@ -147,20 +173,58 @@ function App() {
                 onClick={() => setFastModel(!fastModel)}
                 className="flex items-center gap-2"
               >
-                <span className={fastModel ? "text-[var(--lime)]" : "text-[var(--text-muted)]"}>
+                <span
+                  className={
+                    fastModel ? "text-[var(--lime)]" : "text-[var(--text-muted)]"
+                  }
+                >
                   FAST
                 </span>
-                <div className={`relative h-5 w-9 rounded-full border-2 transition-colors ${
-                  fastModel ? "border-[var(--lime)] bg-[var(--lime)]" : "border-[var(--electric-blue)] bg-[var(--electric-blue)]"
-                }`}>
-                  <div className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
-                    fastModel ? "translate-x-0.5" : "translate-x-4"
-                  }`} />
+                <div
+                  className={`relative h-5 w-9 rounded-full border-2 transition-colors ${
+                    fastModel
+                      ? "border-[var(--lime)] bg-[var(--lime)]"
+                      : "border-[var(--electric-blue)] bg-[var(--electric-blue)]"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
+                      fastModel ? "translate-x-0.5" : "translate-x-4"
+                    }`}
+                  />
                 </div>
-                <span className={fastModel ? "text-[var(--text-muted)]" : "text-[var(--electric-blue)]"}>
+                <span
+                  className={
+                    fastModel
+                      ? "text-[var(--text-muted)]"
+                      : "text-[var(--electric-blue)]"
+                  }
+                >
                   PRO
                 </span>
               </button>
+            </div>
+          </div>
+
+          {/* Count selector */}
+          <div className="mt-4">
+            <div className="font-pixel mb-2 text-sm text-[var(--cyber-yellow)]">
+              &gt; COUNT:
+            </div>
+            <div className="flex gap-2">
+              {COUNT_OPTIONS.map((count) => (
+                <button
+                  key={count}
+                  onClick={() => setGenerationCount(count)}
+                  className={`font-pixel flex-1 rounded-lg py-2 text-sm font-bold transition-all ${
+                    generationCount === count
+                      ? "bg-[var(--electric-blue)] text-[var(--bg-primary)]"
+                      : "bg-[var(--surface-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {count}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -170,18 +234,28 @@ function App() {
             isLoading={isLoading}
           />
 
-          {/* Clear button */}
-          {(selectedEmojis.length > 0 || modifier || result) && (
-            <button
-              onClick={handleClear}
-              className="mt-3 py-1 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--hot-pink)]"
-            >
-              [ CLEAR ]
-            </button>
-          )}
+          {/* Clear buttons */}
+          <div className="mt-3 flex items-center justify-center gap-4">
+            {(selectedEmojis.length > 0 || modifier) && (
+              <button
+                onClick={handleClear}
+                className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--hot-pink)]"
+              >
+                [ CLEAR INPUT ]
+              </button>
+            )}
+            {history.length > 0 && (
+              <button
+                onClick={handleClearHistory}
+                className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--hot-pink)]"
+              >
+                [ CLEAR ALL ]
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Right column: Results */}
+        {/* Middle column: History grid */}
         <div className="border-retro flex min-h-0 flex-1 flex-col rounded-lg bg-[var(--surface)] p-4">
           {error && (
             <div className="border-retro mb-3 rounded-lg border-[var(--hot-pink)] bg-[var(--surface-elevated)] p-3">
@@ -191,22 +265,23 @@ function App() {
             </div>
           )}
 
-          {isLoading || result ? (
-            <ImagePreview
-              slots={slots}
-              mimeType={result?.mime_type ?? "image/png"}
-              emojis={selectedEmojis}
-              modifier={modifier}
-            />
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center text-center">
-              <div className="font-pixel text-lg text-[var(--text-muted)]">
-                SELECT EMOJIS
-                <br />
-                <span className="text-sm">& HIT GENERATE</span>
-              </div>
-            </div>
-          )}
+          <HistoryPanel
+            history={history}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            useColorKey={useColorKey}
+            isLoading={isLoading}
+            pendingCount={pendingCount}
+          />
+        </div>
+
+        {/* Right column: Selection details */}
+        <div className="border-retro flex w-[280px] shrink-0 flex-col rounded-lg bg-[var(--surface)] p-4">
+          <SelectionPanel
+            selectedItem={selectedItem}
+            useColorKey={useColorKey}
+            onToggleColorKey={() => setUseColorKey(!useColorKey)}
+          />
         </div>
       </div>
     </div>

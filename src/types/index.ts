@@ -13,6 +13,7 @@ export interface GenerationProgress {
   index: number;
   flood_fill: string | null;
   color_key: string | null;
+  raw_image: string | null;
   error: string | null;
 }
 
@@ -28,4 +29,15 @@ export interface GenerationState {
   error: string | null;
   result: GenerationResult | null;
   slots: SlotState[];
+}
+
+export interface HistoryItem {
+  id: string;
+  sourceEmojis: string[];
+  modifier: string;
+  status: "success" | "error";
+  floodFill: string | null;
+  colorKey: string | null;
+  rawImage: string | null;
+  error: string | null;
 }

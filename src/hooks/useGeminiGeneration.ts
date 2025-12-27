@@ -1,102 +1,72 @@
 import { useState, useCallback } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
-import type {
-  GenerationResult,
-  GenerationState,
-  GenerationProgress,
-  SlotState,
-} from "../types";
-
-const INITIAL_SLOTS: SlotState[] = [
-  { status: "pending", floodFill: null, colorKey: null, error: null },
-  { status: "pending", floodFill: null, colorKey: null, error: null },
-  { status: "pending", floodFill: null, colorKey: null, error: null },
-  { status: "pending", floodFill: null, colorKey: null, error: null },
-];
-
-const LOADING_SLOTS: SlotState[] = [
-  { status: "loading", floodFill: null, colorKey: null, error: null },
-  { status: "loading", floodFill: null, colorKey: null, error: null },
-  { status: "loading", floodFill: null, colorKey: null, error: null },
-  { status: "loading", floodFill: null, colorKey: null, error: null },
-];
+import type { GenerationResult, GenerationProgress, HistoryItem } from "../types";
 
 export function useGeminiGeneration() {
-  const [state, setState] = useState<GenerationState>({
-    isLoading: false,
-    error: null,
-    result: null,
-    slots: INITIAL_SLOTS,
-  });
+  const [pendingCount, setPendingCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const generate = useCallback(
-    async (emojis: string[], modifier?: string, fastModel?: boolean) => {
+    async (
+      emojis: string[],
+      modifier: string,
+      fastModel: boolean,
+      count: number,
+      onItemComplete: (item: HistoryItem) => void
+    ) => {
       if (emojis.length === 0) {
-        setState((prev) => ({
-          ...prev,
-          error: "Please select at least one emoji",
-        }));
+        setError("Please select at least one emoji");
         return;
       }
 
-      // Initialize loading state with all slots as "loading"
-      setState({
-        isLoading: true,
-        error: null,
-        result: null,
-        slots: [...LOADING_SLOTS],
-      });
+      // Add to pending count (allows concurrent batches)
+      setPendingCount((prev) => prev + count);
+      setError(null);
 
       // Create channel for streaming progress
       const onProgress = new Channel<GenerationProgress>();
 
       onProgress.onmessage = (progress: GenerationProgress) => {
-        setState((prev) => {
-          const newSlots = [...prev.slots];
-          newSlots[progress.index] = {
-            status: progress.flood_fill ? "success" : "error",
-            floodFill: progress.flood_fill,
-            colorKey: progress.color_key,
-            error: progress.error,
-          };
-          return { ...prev, slots: newSlots };
-        });
+        // Create history item for this completed generation
+        const item: HistoryItem = {
+          id: crypto.randomUUID(),
+          sourceEmojis: [...emojis],
+          modifier: modifier || "",
+          status: progress.flood_fill ? "success" : "error",
+          floodFill: progress.flood_fill,
+          colorKey: progress.color_key,
+          rawImage: progress.raw_image,
+          error: progress.error,
+        };
+
+        // Call the completion callback
+        onItemComplete(item);
+
+        // Decrement pending count
+        setPendingCount((prev) => Math.max(0, prev - 1));
       };
 
       try {
-        const result = await invoke<GenerationResult>("generate_emoji", {
+        await invoke<GenerationResult>("generate_emoji", {
           emojis,
           modifier: modifier || null,
-          fastModel: fastModel ?? false,
+          fastModel,
+          count,
           onProgress,
         });
-
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: null,
-          result,
-        }));
-      } catch (error) {
-        setState((prev) => ({
-          ...prev,
-          isLoading: false,
-          error: error instanceof Error ? error.message : String(error),
-          result: null,
-        }));
+      } catch (err) {
+        // Decrement all pending from this batch on error
+        setPendingCount((prev) => Math.max(0, prev - count));
+        setError(err instanceof Error ? err.message : String(err));
       }
     },
     []
   );
 
-  const reset = useCallback(() => {
-    setState({
-      isLoading: false,
-      error: null,
-      result: null,
-      slots: INITIAL_SLOTS,
-    });
-  }, []);
-
-  return { ...state, generate, reset };
+  return {
+    isLoading: pendingCount > 0,
+    pendingCount,
+    error,
+    generate,
+  };
 }

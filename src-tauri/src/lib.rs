@@ -24,6 +24,7 @@ struct GenerationProgress {
     index: usize,
     flood_fill: Option<String>,
     color_key: Option<String>,
+    raw_image: Option<String>, // Original image before processing (for debugging failed items)
     error: Option<String>,
 }
 
@@ -93,30 +94,42 @@ async fn generate_emoji(
     emojis: Vec<String>,
     modifier: Option<String>,
     fast_model: Option<bool>,
+    count: Option<usize>,
     on_progress: Channel<GenerationProgress>,
 ) -> Result<GenerationResult, String> {
     let api_key = get_api_key_internal().ok_or("No API key configured")?;
     let use_fast = fast_model.unwrap_or(false);
+    let num_images = count.unwrap_or(4).min(8); // Default 4, max 8
 
     let prompt = build_prompt(&emojis, modifier.as_deref());
 
-    // Generate 4 images in parallel, streaming results as they complete
-    let futures: Vec<_> = (0..4)
+    // Generate images in parallel, streaming results as they complete
+    let futures: Vec<_> = (0..num_images)
         .map(|index| {
             let prompt = prompt.clone();
             let api_key = api_key.clone();
             let channel = on_progress.clone();
             async move {
-                let result = async {
-                    let image_bytes =
-                        gemini::generate_emoji_image(&prompt, &api_key, use_fast).await?;
-                    let processed = gemini::resize_to_emoji(&image_bytes)?;
-                    Ok::<(String, String), String>((
-                        STANDARD.encode(&processed.flood_fill),
-                        STANDARD.encode(&processed.color_key),
-                    ))
-                }
-                .await;
+                // First, try to get the raw image
+                let raw_result = gemini::generate_emoji_image(&prompt, &api_key, use_fast).await;
+
+                let (result, raw_image) = match raw_result {
+                    Ok(image_bytes) => {
+                        let raw_b64 = STANDARD.encode(&image_bytes);
+                        // Try to process it
+                        match gemini::resize_to_emoji(&image_bytes) {
+                            Ok(processed) => (
+                                Ok((
+                                    STANDARD.encode(&processed.flood_fill),
+                                    STANDARD.encode(&processed.color_key),
+                                )),
+                                Some(raw_b64),
+                            ),
+                            Err(e) => (Err(e), Some(raw_b64)), // Processing failed, but we have raw image
+                        }
+                    }
+                    Err(e) => (Err(e), None), // Generation failed, no raw image
+                };
 
                 // Send progress immediately when this image completes
                 let progress = match &result {
@@ -124,12 +137,14 @@ async fn generate_emoji(
                         index,
                         flood_fill: Some(ff.clone()),
                         color_key: Some(ck.clone()),
+                        raw_image: None, // Don't need raw for successful items
                         error: None,
                     },
                     Err(e) => GenerationProgress {
                         index,
                         flood_fill: None,
                         color_key: None,
+                        raw_image, // Include raw image for failed items
                         error: Some(e.clone()),
                     },
                 };
