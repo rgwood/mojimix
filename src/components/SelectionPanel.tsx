@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { HistoryItem } from "../types";
 
@@ -14,6 +14,11 @@ export function SelectionPanel({
   onToggleColorKey,
 }: Props) {
   const [savedPath, setSavedPath] = useState<string | null>(null);
+
+  // Reset saved path when selecting a different item
+  useEffect(() => {
+    setSavedPath(null);
+  }, [selectedItem?.id]);
 
   // Try to get image even for errors (might have partial data)
   // For errors, fall back to rawImage if processed versions aren't available
