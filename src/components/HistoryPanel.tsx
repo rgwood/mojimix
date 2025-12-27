@@ -45,7 +45,7 @@ export function HistoryPanel({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+          <div className="grid gap-2 grid-cols-[repeat(auto-fill,minmax(140px,1fr))]">
             {history.map((item) => {
               const image = getImage(item);
               const isSelected = item.id === selectedId;
@@ -54,7 +54,7 @@ export function HistoryPanel({
                 <button
                   key={item.id}
                   onClick={() => onSelect(item.id)}
-                  className={`group relative aspect-square overflow-hidden rounded-lg transition-all ${
+                  className={`group relative aspect-square w-full overflow-hidden rounded-lg transition-all ${
                     isSelected
                       ? "border-retro-blue"
                       : item.status === "error"

@@ -35,6 +35,7 @@ export interface HistoryItem {
   id: string;
   sourceEmojis: string[];
   modifier: string;
+  model: string;
   status: "success" | "error";
   floodFill: string | null;
   colorKey: string | null;

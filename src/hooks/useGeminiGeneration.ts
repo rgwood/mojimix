@@ -32,6 +32,7 @@ export function useGeminiGeneration() {
           id: crypto.randomUUID(),
           sourceEmojis: [...emojis],
           modifier: modifier || "",
+          model: fastModel ? "gemini-2.5-flash-image" : "gemini-3-pro-image-preview",
           status: progress.flood_fill ? "success" : "error",
           floodFill: progress.flood_fill,
           colorKey: progress.color_key,

@@ -92,6 +92,9 @@ export function SelectionPanel({
             "{selectedItem.modifier}"
           </div>
         )}
+        <div className="font-pixel mt-1 text-[10px] text-[var(--text-muted)]">
+          {selectedItem.model}
+        </div>
       </div>
 
       {/* Error message */}
