@@ -10,6 +10,7 @@ use tauri::ipc::Channel;
 struct ImageResult {
     flood_fill: Option<String>,
     color_key: Option<String>,
+    warning: Option<String>,
     error: Option<String>,
 }
 
@@ -25,6 +26,7 @@ struct GenerationProgress {
     flood_fill: Option<String>,
     color_key: Option<String>,
     raw_image: Option<String>, // Original image before processing (for debugging failed items)
+    warning: Option<String>,
     error: Option<String>,
 }
 
@@ -113,7 +115,7 @@ async fn generate_emoji(
                 // First, try to get the raw image
                 let raw_result = gemini::generate_emoji_image(&prompt, &api_key, use_fast).await;
 
-                let (result, raw_image) = match raw_result {
+                let (result, raw_image, warning) = match raw_result {
                     Ok(image_bytes) => {
                         let raw_b64 = STANDARD.encode(&image_bytes);
                         // Try to process it
@@ -124,11 +126,12 @@ async fn generate_emoji(
                                     STANDARD.encode(&processed.color_key),
                                 )),
                                 Some(raw_b64),
+                                processed.warning,
                             ),
-                            Err(e) => (Err(e), Some(raw_b64)), // Processing failed, but we have raw image
+                            Err(e) => (Err(e), Some(raw_b64), None), // Processing failed, but we have raw image
                         }
                     }
-                    Err(e) => (Err(e), None), // Generation failed, no raw image
+                    Err(e) => (Err(e), None, None), // Generation failed, no raw image
                 };
 
                 // Send progress immediately when this image completes
@@ -137,20 +140,22 @@ async fn generate_emoji(
                         index,
                         flood_fill: Some(ff.clone()),
                         color_key: Some(ck.clone()),
-                        raw_image: None, // Don't need raw for successful items
+                        raw_image: raw_image.clone(), // Include raw for all items
+                        warning: warning.clone(),
                         error: None,
                     },
                     Err(e) => GenerationProgress {
                         index,
                         flood_fill: None,
                         color_key: None,
-                        raw_image, // Include raw image for failed items
+                        raw_image,
+                        warning: None,
                         error: Some(e.clone()),
                     },
                 };
                 let _ = channel.send(progress);
 
-                (index, result)
+                (index, result, warning)
             }
         })
         .collect();
@@ -158,19 +163,21 @@ async fn generate_emoji(
     let mut indexed_results = futures::future::join_all(futures).await;
 
     // Sort by index to maintain order in final result
-    indexed_results.sort_by_key(|(idx, _)| *idx);
+    indexed_results.sort_by_key(|(idx, _, _)| *idx);
 
     let results: Vec<ImageResult> = indexed_results
         .into_iter()
-        .map(|(_, r)| match r {
+        .map(|(_, r, warning)| match r {
             Ok((ff, ck)) => ImageResult {
                 flood_fill: Some(ff),
                 color_key: Some(ck),
+                warning,
                 error: None,
             },
             Err(e) => ImageResult {
                 flood_fill: None,
                 color_key: None,
+                warning: None,
                 error: Some(e),
             },
         })

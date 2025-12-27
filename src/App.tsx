@@ -88,7 +88,6 @@ function App() {
   const [generationCount, setGenerationCount] = useState(4);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [useColorKey, setUseColorKey] = useState(false);
 
   const { isLoading, pendingCount, error, generate } =
     useGeminiGeneration();
@@ -269,7 +268,6 @@ function App() {
             history={history}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            useColorKey={useColorKey}
             isLoading={isLoading}
             pendingCount={pendingCount}
           />
@@ -279,8 +277,6 @@ function App() {
         <div className="border-retro flex w-[280px] shrink-0 flex-col rounded-lg bg-[var(--surface)] p-4">
           <SelectionPanel
             selectedItem={selectedItem}
-            useColorKey={useColorKey}
-            onToggleColorKey={() => setUseColorKey(!useColorKey)}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 export interface ImageResult {
   flood_fill: string | null;
   color_key: string | null;
+  warning: string | null;
   error: string | null;
 }
 
@@ -14,6 +15,7 @@ export interface GenerationProgress {
   flood_fill: string | null;
   color_key: string | null;
   raw_image: string | null;
+  warning: string | null;
   error: string | null;
 }
 
@@ -40,5 +42,6 @@ export interface HistoryItem {
   floodFill: string | null;
   colorKey: string | null;
   rawImage: string | null;
+  warning: string | null;
   error: string | null;
 }

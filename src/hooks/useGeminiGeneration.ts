@@ -37,6 +37,7 @@ export function useGeminiGeneration() {
           floodFill: progress.flood_fill,
           colorKey: progress.color_key,
           rawImage: progress.raw_image,
+          warning: progress.warning,
           error: progress.error,
         };
 

@@ -2,47 +2,40 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { HistoryItem } from "../types";
 
+type ImageVariant = "raw" | "flood" | "colorKey";
+
 interface Props {
   selectedItem: HistoryItem | null;
-  useColorKey: boolean;
-  onToggleColorKey: () => void;
 }
 
-export function SelectionPanel({
-  selectedItem,
-  useColorKey,
-  onToggleColorKey,
-}: Props) {
+export function SelectionPanel({ selectedItem }: Props) {
   const [savedPath, setSavedPath] = useState<string | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<ImageVariant>("colorKey");
 
   // Reset saved path when selecting a different item
   useEffect(() => {
     setSavedPath(null);
   }, [selectedItem?.id]);
 
-  // Try to get image even for errors (might have partial data)
-  // For errors, fall back to rawImage if processed versions aren't available
-  const selectedImage = selectedItem
-    ? useColorKey
-      ? selectedItem.colorKey
-      : selectedItem.floodFill
-    : null;
+  // Get image for a specific variant
+  const getVariantImage = (variant: ImageVariant): string | null => {
+    if (!selectedItem) return null;
+    switch (variant) {
+      case "raw": return selectedItem.rawImage;
+      case "flood": return selectedItem.floodFill;
+      case "colorKey": return selectedItem.colorKey;
+    }
+  };
 
-  // Use raw image as fallback for failed items
-  const displayImage = selectedImage || selectedItem?.rawImage;
-
-  const imageSrc = displayImage
-    ? `data:image/png;base64,${displayImage}`
-    : null;
-
-  const hasImage = !!displayImage;
-  const isShowingRaw = !selectedImage && !!selectedItem?.rawImage;
+  const selectedImage = getVariantImage(selectedVariant);
+  const imageSrc = selectedImage ? `data:image/png;base64,${selectedImage}` : null;
+  const hasImage = !!selectedImage;
 
   const handleSave = async () => {
-    if (!displayImage || !selectedItem) return;
+    if (!selectedImage || !selectedItem) return;
     try {
       const path = await invoke<string>("save_emoji_image", {
-        imageBase64: displayImage,
+        imageBase64: selectedImage,
         emojis: selectedItem.sourceEmojis,
         modifier: selectedItem.modifier || null,
       });
@@ -65,7 +58,6 @@ export function SelectionPanel({
     }
   };
 
-  const hasSelection = !!selectedItem;
   const isError = selectedItem?.status === "error";
 
   if (!selectedItem) {
@@ -79,6 +71,12 @@ export function SelectionPanel({
       </div>
     );
   }
+
+  const variants: { key: ImageVariant; label: string }[] = [
+    { key: "raw", label: "RAW" },
+    { key: "flood", label: "FLOOD" },
+    { key: "colorKey", label: "COLOR KEY" },
+  ];
 
   return (
     <div className="flex h-full flex-col">
@@ -109,36 +107,60 @@ export function SelectionPanel({
         </div>
       )}
 
-      {/* Raw image indicator */}
-      {isShowingRaw && (
-        <div className="mb-2 text-center">
-          <span className="font-pixel text-xs text-[var(--cyber-yellow)]">
-            SHOWING RAW IMAGE
-          </span>
+      {/* Warning message */}
+      {selectedItem.warning && (
+        <div className="mb-3 rounded-lg bg-[var(--surface-elevated)] p-2">
+          <div className="font-pixel mb-1 text-xs text-[var(--cyber-yellow)]">
+            WARNING:
+          </div>
+          <div className="text-xs text-[var(--text-secondary)] break-words">
+            {selectedItem.warning}
+          </div>
         </div>
       )}
 
-      {/* Large preview */}
-      <div className="mb-3 flex flex-1 items-center justify-center">
-        {imageSrc ? (
-          <div className="aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-[var(--surface-elevated)]">
-            <img
-              src={imageSrc}
-              alt="Selected emoji"
-              className="h-full w-full object-contain"
-            />
-          </div>
-        ) : isError ? (
-          <div className="flex aspect-square w-full max-w-[200px] items-center justify-center rounded-lg bg-[var(--surface-elevated)]">
-            <span className="font-pixel text-sm text-[var(--hot-pink)]">
-              NO IMAGE
-            </span>
-          </div>
-        ) : null}
+      {/* Variant thumbnails - vertical stack */}
+      <div className="mb-3 flex flex-1 flex-col gap-2 overflow-y-auto">
+        {variants.map(({ key, label }) => {
+          const variantImage = getVariantImage(key);
+          const variantSrc = variantImage ? `data:image/png;base64,${variantImage}` : null;
+          const isSelected = selectedVariant === key;
+
+          return (
+            <button
+              key={key}
+              onClick={() => setSelectedVariant(key)}
+              className={`flex flex-col items-center rounded-lg p-2 transition-all ${
+                isSelected
+                  ? "border-2 border-[var(--electric-blue)] bg-[var(--surface-elevated)]"
+                  : "border-2 border-transparent hover:border-[var(--border-chunky)]"
+              }`}
+            >
+              <div className="font-pixel mb-1 text-[10px] text-[var(--text-muted)]">
+                {label}
+              </div>
+              <div className="aspect-square w-full max-w-[200px] overflow-hidden rounded-lg bg-[var(--surface-elevated)]">
+                {variantSrc ? (
+                  <img
+                    src={variantSrc}
+                    alt={label}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <span className="font-pixel text-xs text-[var(--text-muted)]">
+                      N/A
+                    </span>
+                  </div>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Size previews */}
-      {hasSelection && imageSrc && (
+      {imageSrc && (
         <div className="mb-3 flex items-end justify-center gap-2">
           <div className="flex flex-col items-center">
             <img src={imageSrc} alt="16px" className="h-4 w-4 object-contain" />
@@ -152,36 +174,6 @@ export function SelectionPanel({
             <img src={imageSrc} alt="32px" className="h-8 w-8 object-contain" />
             <span className="font-pixel mt-1 text-[10px] text-[var(--text-muted)]">32</span>
           </div>
-        </div>
-      )}
-
-      {/* FLOOD/COLOR KEY toggle */}
-      {hasImage && (
-        <div className="mb-3 flex items-center justify-center gap-2">
-          <span
-            className={`font-pixel text-xs ${!useColorKey ? "text-[var(--lime)]" : "text-[var(--text-muted)]"}`}
-          >
-            FLOOD
-          </span>
-          <button
-            onClick={onToggleColorKey}
-            className={`relative h-5 w-9 rounded-full border-2 transition-colors ${
-              useColorKey
-                ? "border-[var(--cyber-yellow)] bg-[var(--cyber-yellow)]"
-                : "border-[var(--lime)] bg-[var(--lime)]"
-            }`}
-          >
-            <div
-              className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${
-                useColorKey ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
-          </button>
-          <span
-            className={`font-pixel text-xs ${useColorKey ? "text-[var(--cyber-yellow)]" : "text-[var(--text-muted)]"}`}
-          >
-            COLOR KEY
-          </span>
         </div>
       )}
 

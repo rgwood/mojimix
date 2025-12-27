@@ -130,6 +130,7 @@ pub async fn generate_emoji_image(prompt: &str, api_key: &str, use_fast_model: b
 pub struct ProcessedEmoji {
     pub flood_fill: Vec<u8>,
     pub color_key: Vec<u8>,
+    pub warning: Option<String>,
 }
 
 pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<ProcessedEmoji, String> {
@@ -150,34 +151,61 @@ pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<ProcessedEmoji, String> {
         rgba.get_pixel(width - 1, height - 1),
     ];
 
-    // Check all corners are similar (within tolerance)
-    let tolerance = 50i16;
-    let ref_pixel = corners[0];
-    for (i, corner) in corners.iter().enumerate().skip(1) {
-        let dr = (corner.0[0] as i16 - ref_pixel.0[0] as i16).abs();
-        let dg = (corner.0[1] as i16 - ref_pixel.0[1] as i16).abs();
-        let db = (corner.0[2] as i16 - ref_pixel.0[2] as i16).abs();
-        if dr > tolerance || dg > tolerance || db > tolerance {
-            return Err(format!(
-                "Background inconsistent: corner 0 is ({},{},{}), corner {} is ({},{},{})",
-                ref_pixel.0[0], ref_pixel.0[1], ref_pixel.0[2],
-                i, corner.0[0], corner.0[1], corner.0[2]
-            ));
-        }
-    }
+    let mut warning: Option<String> = None;
 
-    // Use average of corners as background color
-    let bg_r = corners.iter().map(|c| c.0[0] as u16).sum::<u16>() / 4;
-    let bg_g = corners.iter().map(|c| c.0[1] as u16).sum::<u16>() / 4;
-    let bg_b = corners.iter().map(|c| c.0[2] as u16).sum::<u16>() / 4;
+    // Helper to check if a pixel is "green-ish" (green dominant)
+    let is_greenish = |pixel: &Rgba<u8>| -> bool {
+        pixel.0[1] > pixel.0[0] && pixel.0[1] > pixel.0[2]
+    };
 
-    // Verify background is green-dominant
-    if bg_g <= bg_r || bg_g <= bg_b {
+    // Filter corners to only green-ish ones
+    let green_corners: Vec<_> = corners.iter().filter(|c| is_greenish(c)).collect();
+
+    // Determine background color
+    let (bg_r, bg_g, bg_b) = if green_corners.is_empty() {
+        // No green corners at all - this is a hard error
         return Err(format!(
-            "Background not green-dominant: ({},{},{})",
-            bg_r, bg_g, bg_b
+            "No green background detected in any corner: ({},{},{}), ({},{},{}), ({},{},{}), ({},{},{})",
+            corners[0].0[0], corners[0].0[1], corners[0].0[2],
+            corners[1].0[0], corners[1].0[1], corners[1].0[2],
+            corners[2].0[0], corners[2].0[1], corners[2].0[2],
+            corners[3].0[0], corners[3].0[1], corners[3].0[2],
         ));
-    }
+    } else if green_corners.len() < 4 {
+        // Some corners aren't green - warn but continue with green corners only
+        let non_green_count = 4 - green_corners.len();
+        warning = Some(format!(
+            "{} corner(s) excluded from background detection (not green)",
+            non_green_count
+        ));
+        let count = green_corners.len() as u16;
+        (
+            green_corners.iter().map(|c| c.0[0] as u16).sum::<u16>() / count,
+            green_corners.iter().map(|c| c.0[1] as u16).sum::<u16>() / count,
+            green_corners.iter().map(|c| c.0[2] as u16).sum::<u16>() / count,
+        )
+    } else {
+        // All corners are green - check consistency
+        let tolerance = 50i16;
+        let ref_pixel = corners[0];
+        for corner in corners.iter().skip(1) {
+            let dr = (corner.0[0] as i16 - ref_pixel.0[0] as i16).abs();
+            let dg = (corner.0[1] as i16 - ref_pixel.0[1] as i16).abs();
+            let db = (corner.0[2] as i16 - ref_pixel.0[2] as i16).abs();
+            if dr > tolerance || dg > tolerance || db > tolerance {
+                warning = Some(
+                    "Background color varies between corners (using average)".to_string()
+                );
+                break;
+            }
+        }
+        // Use average of all corners
+        (
+            corners.iter().map(|c| c.0[0] as u16).sum::<u16>() / 4,
+            corners.iter().map(|c| c.0[1] as u16).sum::<u16>() / 4,
+            corners.iter().map(|c| c.0[2] as u16).sum::<u16>() / 4,
+        )
+    };
 
     let bg_tolerance = 40i16;
 
@@ -305,6 +333,7 @@ pub fn resize_to_emoji(image_bytes: &[u8]) -> Result<ProcessedEmoji, String> {
     Ok(ProcessedEmoji {
         flood_fill: finalize(flood_fill_result)?,
         color_key: finalize(color_key_result)?,
+        warning,
     })
 }
 
@@ -383,4 +412,27 @@ pub async fn generate_filename(
     }
 
     Err("No text in response".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resize_inconsistent_background_returns_warning() {
+        // This image has a green background but one corner has a hand (skin tone)
+        // Previously this would fail; now it should succeed with a warning
+        let image_bytes = include_bytes!("../tests/fixtures/cowboy_friends.png");
+        let result = resize_to_emoji(image_bytes);
+
+        assert!(result.is_ok(), "Should succeed with warning, not fail: {:?}", result.err());
+        let processed = result.unwrap();
+        assert!(processed.warning.is_some(), "Should have a warning about excluded corners");
+        assert!(!processed.flood_fill.is_empty(), "Should have flood_fill output");
+        assert!(!processed.color_key.is_empty(), "Should have color_key output");
+
+        // Verify the warning mentions excluded corners
+        let warning = processed.warning.unwrap();
+        assert!(warning.contains("corner"), "Warning should mention corners: {}", warning);
+    }
 }
